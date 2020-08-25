@@ -1,20 +1,46 @@
 import React from "react";
+import { FlatList, SafeAreaView, Button, View, Alert } from "react-native";
 import { InMemoryCache, gql, makeVar, ApolloClient } from "@apollo/client";
 import { ApolloProvider, useQuery } from "@apollo/react-hooks";
-import { Button, Text, View, SafeAreaView } from "react-native";
 
-//
-// Web Browser Version of this Sample: https://codesandbox.io/s/quiet-bash-pi2ms?file=/src/App.js:0-1247
-//
+const typeDefs = gql`
+  type Agenda {
+    name: String!
+    items: [String!]!
+  }
 
-const position = makeVar(14);
+  type Query {
+    allAgendas: [Agenda!]!
+    addAgenda(name: String!): Agenda!
+    addItem(agendaName: String!, name: String!): Agenda!
+    removeAgenda(name: String!): Boolean!
+    removeItem(agendaName: String!, name: String!): Agenda!
+  }
+`;
+
+const allAgendas = makeVar([
+  {
+    name: "AVI Training",
+    items: ["Get the Gear", "Get the Training", "Get the Report"],
+  },
+  {
+    name: "How to Backpack",
+    items: [
+      "Research a Trip",
+      "Obtain Permits",
+      "Pack Your Pack",
+      "Start Hiking",
+    ],
+  },
+]);
+
 const cache = new InMemoryCache({
   typePolicies: {
     Query: {
       fields: {
-        position: {
+        allAgendas: {
           read() {
-            return position();
+            return allAgendas();
           },
         },
       },
@@ -22,43 +48,55 @@ const cache = new InMemoryCache({
   },
 });
 
-const client = new ApolloClient({
-  cache,
-});
+const client = new ApolloClient({ cache });
 
-const POSITION_QUERY = gql`
+const ALL_AGENDAS_QUERY = gql`
   query {
-    position @client
+    allAgendas @client {
+      name
+      items
+    }
   }
 `;
 
-function Position() {
-  const { loading, error, data } = useQuery(POSITION_QUERY);
-  if (loading) return <Text>loading...</Text>;
-  if (error) return <Text>{JSON.stringify(error, null, 2)}</Text>;
-  return <Text>{data.position}</Text>;
+function useAgendas() {
+  return {
+    deleteAgenda(name) {
+      console.log(`delete ${name}`);
+      const a = allAgendas();
+      console.log(a.length);
+      const less = a.filter((item) => item.name !== name);
+      allAgendas(less);
+    },
+  };
 }
 
-function PrevButton() {
+function AgendaDisplay({ name, items = [] }) {
+  const { deleteAgenda } = useAgendas();
   return (
-    <Button
-      title="prev"
-      onPress={() => {
-        const val = position();
-        position(val - 1);
-      }}
-    />
+    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+      <Button
+        title={`${name} - ${items.length} items`}
+        onPress={() => Alert.alert(`TODO: Start ${name}`)}
+      />
+      <Button title="delete" color="red" onPress={() => deleteAgenda(name)} />
+    </View>
   );
 }
 
-function NextButton() {
+function AgendaList() {
+  const { loading, error, data } = useQuery(ALL_AGENDAS_QUERY);
+
+  console.log("render ", data);
+
+  if (loading) return <Text>Loading</Text>;
+  if (error) return <Text>{JSON.stringify(error, null, 2)}</Text>;
+
   return (
-    <Button
-      title="next"
-      onPress={() => {
-        const val = position();
-        position(val + 1);
-      }}
+    <FlatList
+      data={data.allAgendas}
+      keyExtractor={(_, i) => `agenda-${i}`}
+      renderItem={({ item }) => <AgendaDisplay {...item} />}
     />
   );
 }
@@ -66,14 +104,8 @@ function NextButton() {
 export default function App() {
   return (
     <ApolloProvider client={client}>
-      <SafeAreaView
-        style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-      >
-        <Position />
-        <View style={{ flex: 1, flexDirection: "row" }}>
-          <PrevButton />
-          <NextButton />
-        </View>
+      <SafeAreaView>
+        <AgendaList />
       </SafeAreaView>
     </ApolloProvider>
   );
